@@ -1,0 +1,42 @@
+- name: Create Local Repository On Redhat/Centos Server
+  hosts: webserver
+  become: true
+  vars:
+   support_os:
+    - RedHat
+    - Centos
+    - Fedora
+   source_repos: "/local_repos"
+   repos_description: "New Local Repos"
+  tasks:
+   - name: Checking source path of local repo existing
+     shell: "ls -ld {{ source_repos }}"
+     ignore_errors: true
+     register: output_check
+
+   - name: Create Local Repository If Existing Source And OS Support
+     block:
+       - name: Install createrepe package
+         yum:
+           name: createrepo
+           state: present
+
+       - name: Create And Update Repo From source
+         shell: "createrepo {{ source_repos }};createrepo --update {{ source_repos }}"
+
+       - name: Configure Local reposfor client
+         copy:
+          dest: /etc/yum.repos.d/new_local.repo
+          content: |
+            [mylocalrepo]
+            name="{{ repos_description }}"
+            baseurl = file://{{ source_repos }}
+            gpgcheck=0
+
+       - name: Enable new repository for yum module
+         shell: "yum --enablerepo=mylocalrepo"
+         ignore_errors: true
+
+     when:
+      - ansible_distribution in support_os
+      - output_check.rc == 0
